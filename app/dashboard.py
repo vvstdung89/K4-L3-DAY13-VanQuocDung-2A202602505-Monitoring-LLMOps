@@ -214,9 +214,12 @@ def _fmt(v: Any) -> str:
     return "n/a" if v is None else f"{v:,}" if isinstance(v, int) else escape(str(v))
 
 
-def render_dashboard(log_path: Path, now: datetime | None = None, config: dict | None = None) -> str:
+def render_dashboard(log_path: Path, now: datetime | None = None, config: dict | None = None,
+                     minutes: int | None = None) -> str:
     config = config or load_config()
-    minutes = config["time_range_minutes"]
+    # Mặc định dùng time range của contract; `minutes` chỉ để zoom vào một khoảng ngắn hơn.
+    default_minutes = config["time_range_minutes"]
+    minutes = max(1, min(minutes or default_minutes, default_minutes))
     end = (now or datetime.now(timezone.utc)).replace(second=59, microsecond=999999)
     start = end.replace(second=0, microsecond=0) - timedelta(minutes=minutes - 1)
     data = compute_panels(load_events(log_path, start, end), start, minutes)
@@ -276,6 +279,6 @@ def render_dashboard(log_path: Path, now: datetime | None = None, config: dict |
  .query{{font-size:10px;color:#6b7280;margin:6px 0 0}}
 </style></head><body>
 <div class="top"><h1>{escape(config['title'])}</h1>
-<div>Time range: last {minutes} min ({local(start)} → {local(end)}) · auto-refresh {config['refresh_seconds']}s · source: <code>{escape(str(log_path.as_posix()))}</code></div></div>
+<div>Time range: last {minutes} min{"" if minutes == default_minutes else f" (zoom; default {default_minutes} min)"} ({local(start)} → {local(end)}) · auto-refresh {config['refresh_seconds']}s · source: <code>{escape(str(log_path.as_posix()))}</code></div></div>
 <main class="grid6">{''.join(cards)}</main>
 </body></html>"""

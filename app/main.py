@@ -49,8 +49,8 @@ async def metrics() -> dict:
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard() -> HTMLResponse:
-    return HTMLResponse(render_dashboard(logging_config.LOG_PATH))
+async def dashboard(minutes: int | None = None) -> HTMLResponse:
+    return HTMLResponse(render_dashboard(logging_config.LOG_PATH, minutes=minutes))
 
 
 @app.post("/chat", response_model=ChatResponse)

@@ -60,3 +60,11 @@ def test_render_dashboard_has_six_panels_time_range_and_units(tmp_path: Path) ->
     assert f'content="{config["refresh_seconds"]}"' in html
     assert "last 60 min" in html
     assert "BREACH" in html  # p95 4000ms > 3000ms
+
+
+def test_zoom_narrows_window_but_never_exceeds_contract(tmp_path: Path) -> None:
+    log = tmp_path / "logs.jsonl"
+    _write_logs(log)
+    zoomed = render_dashboard(log, now=NOW, minutes=5)
+    assert "last 5 min (zoom; default 60 min)" in zoomed
+    assert "last 60 min" in render_dashboard(log, now=NOW, minutes=999)
