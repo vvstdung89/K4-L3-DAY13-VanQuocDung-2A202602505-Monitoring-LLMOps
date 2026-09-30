@@ -8,7 +8,7 @@
 - **MSSV:** 2A202602505
 - **Lớp:** K4-L3B
 - **Repository URL:** [https://github.com/vvstdung89/K4-L3-DAY13-VanQuocDung-2A202602505-Monitoring-LLMOps](https://github.com/vvstdung89/K4-L3-DAY13-VanQuocDung-2A202602505-Monitoring-LLMOps)
-- **Commit SHA cuối:** `2916c1f0c87a6b559e5fea9d20b56ad944b4e748` (commit chứa toàn bộ source, config và evidence; commit sau đó chỉ ghi SHA này vào report)
+- **Commit SHA cuối:** `cc8f294c200d9f8f857b0e0342bffe662f4fefb9` (commit chứa toàn bộ source, config và evidence; commit sau đó chỉ ghi SHA này vào report)
 - **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
 - **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602505`
 
