@@ -66,10 +66,10 @@
   |---|---|---|---|
   | `baseline` | v1 | `req-ba5e0011` | `f6eb17f18a7f9fc3ae962b23e3477f74` |
   | `candidate` | v2 | `req-ca0d0002` | `8c07a5558867636419d9c7f8d4029db0` |
-  | `production` sau promote | v2 | `req-20d00003` | `6496daf9173509bc46a6bd252076b4d2` |
-  | `production` sau rollback | v1 | `req-10d00004` | `477c57af558c5aab00a709f2b1ab12da` |
+  | `production` sau promote | v2 | `req-20d00013` | `a3fe6e1c9c6833491e5519277579a1f0` |
+  | `production` sau rollback | v1 | `req-10d00014` | `ef1a567cae7369169d662ea7a83c3c3c` |
 
-- **Cách promote và rollback `production`:** không sửa code; app đọc prompt theo `LANGFUSE_PROMPT_NAME` + `LANGFUSE_PROMPT_LABEL`. Promote: chuyển label `production` sang v2 (`langfuse.update_prompt(name="day13-chat", version=2, new_labels=["production"])`), khởi động lại API để bỏ cache 60s, request `req-20d00003` dùng v2. Rollback: chuyển `production` về v1 (`version=1`), request `req-10d00004` dùng lại v1. Ảnh trước/sau: `evidence/10a-prompt-before-promote.png`, `evidence/10b-prompt-after-promote.png`, `evidence/10c-prompt-after-rollback.png`; danh sách version: `evidence/09-prompt-versions.png`.
+- **Cách promote và rollback `production`:** không sửa code; app đọc prompt theo `LANGFUSE_PROMPT_NAME` + `LANGFUSE_PROMPT_LABEL`. Promote: chuyển label `production` sang v2 (`langfuse.update_prompt(name="day13-chat", version=2, new_labels=["production"])`), khởi động lại API để bỏ cache 60s, request `req-20d00013` dùng v2. Rollback: chuyển `production` về v1 (`version=1`), request `req-10d00014` dùng lại v1. Mỗi ảnh chọn đúng version đang mang label `production` (`?version=N`) để thấy nội dung prompt thay đổi: v1 (chỉ 3 biến) → v2 (thêm câu "concise support assistant") → v1. Ảnh trước/sau: `evidence/10a-prompt-before-promote.png`, `evidence/10b-prompt-after-promote.png`, `evidence/10c-prompt-after-rollback.png`; danh sách version: `evidence/09-prompt-versions.png`.
 
 ## 6. Dashboard, SLO và alerts
 
