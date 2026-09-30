@@ -7,7 +7,7 @@
 - **Họ và tên:** Văn Quốc Dũng
 - **MSSV:** 2A202602505
 - **Lớp:** K4-L3B
-- **Repository URL:**
+- **Repository URL:** https://github.com/vvstdung89/K4-L3-DAY13-VanQuocDung-2A202602505-Monitoring-LLMOps
 - **Commit SHA cuối:**
 - **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
 - **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602505`
@@ -37,20 +37,20 @@
 
 | Nội dung | Baseline | Kết quả cuối | Nhận xét |
 |---|---|---|---|
-| `validate_logs.py` | 30/100 (thiếu required fields, 0 correlation ID, thiếu enrichment; PII 0 leak) | | |
-| `validate_dashboard.py` | 6/6 panel hợp lệ | | |
-| `pytest` | 22 passed | | |
-| Số traces hợp lệ | 0 (10 traces, chỉ có root `lab-agent-run`, chưa có retrieval/generation) | | |
-| Số PII leak | 0 | | |
-| Latency P95 / TTFT P95 | 1325 ms / 50 ms | | |
-| Retrieval success rate | 100% (10/10) | | |
+| `validate_logs.py` | 30/100 (thiếu required fields, 0 correlation ID, thiếu enrichment; PII 0 leak) | 100/100 (207 records, 98 correlation ID, 0 thiếu field/enrichment) | Correlation middleware + bind context + scrub trước khi ghi (CP1) |
+| `validate_dashboard.py` | 6/6 panel hợp lệ | 6/6 panel hợp lệ | Contract giữ nguyên; dashboard runtime `/dashboard` đọc đúng contract |
+| `pytest` | 22 passed | 38 passed | +16 test: PII, correlation/logging, child observations, dashboard |
+| Số traces hợp lệ | 0 (10 traces, chỉ có root `lab-agent-run`, chưa có retrieval/generation) | 64 traces có root + retrieval + generation (88 traces tổng) | 24 trace chỉ có root là từ baseline/trước CP2 |
+| Số PII leak | 0 | 0 (log) và chỉ preview đã scrub trên trace | Sample query có email/thẻ; baseline đã che nhờ `summarize_text`, nay scrub mọi field |
+| Latency P95 / TTFT P95 | 1325 ms / 50 ms | 157 ms / 50 ms | Lượt cuối 10 request, 05:17Z; sau khi prompt `day13-chat` có trên Langfuse, không còn fetch 404 |
+| Retrieval success rate | 100% (10/10) | 100% (95/95) | Kể cả trong incident: retrieval chậm nhưng không lỗi |
 
 ## 4. Logging và PII
 
 - **Cách tạo/nhận và truyền correlation ID:** `CorrelationIdMiddleware` (`app/middleware.py`) gọi `clear_contextvars()` đầu mỗi request để không rò context từ request trước. Nếu client gửi `x-request-id` hợp lệ (`[A-Za-z0-9._-]{1,64}`) thì dùng lại, ngược lại sinh `req-<8-hex>` (header không hợp lệ bị thay để tránh log injection). ID được `bind_contextvars` nên mọi log line trong request đều có `correlation_id`, được lưu vào `request.state` để truyền vào `LabAgent.run` (trace metadata), và trả lại qua header `x-request-id`, `x-response-time-ms` cùng field `correlation_id` trong response body.
 - **Các metadata được ghi vào structured log:** `ts`, `level`, `service`, `event`, `correlation_id`, và context bind trong `/chat` (`app/main.py`): `user_id_hash` (`sha256(user_id)[:12]`, không log user_id thô), `session_id`, `feature`, `model`, `env`. Log `response_sent` có thêm `latency_ms`, `ttft_ms`, `tokens_in`, `tokens_out`, `cost_usd`, `quality_score`, `tool_name`, `tool_success`.
 - **Cách bảo đảm PII được scrub trước khi ghi:** processor `scrub_event` được đăng ký trong chuỗi structlog ngay sau `merge_contextvars`/`TimeStamper` và **trước** `JsonlFileProcessor`/`JSONRenderer`, nên dữ liệu được redact trước khi serialize hoặc ghi xuống `data/logs.jsonl`. `scrub_event` scrub đệ quy mọi field (kể cả dict/list lồng nhau), trừ các field do hệ thống sinh (`ts`, `level`, `correlation_id`, `user_id_hash`) để tránh false positive. Pattern trong `app/pii.py` chạy theo thứ tự email → thẻ → điện thoại VN → CCCD → hộ chiếu (thẻ chạy trước để phone/CCCD không cắt một phần số thẻ). Preview được scrub trước rồi mới cắt 80 ký tự.
-- **Cách kiểm chứng kết quả:** `validate_logs.py` đạt 100/100 (0 thiếu field, 0 thiếu enrichment, 18 correlation ID, 0 PII leak) — `evidence/02-log-validator.png`. Structured log thật với cùng `correlation_id` ở header, response và log — `evidence/04-structured-log.png`. Gửi request chứa thẻ/CCCD/điện thoại/email giả, log chỉ còn `[REDACTED_*]` — `evidence/05-pii-redaction.png`. Tests: `tests/test_pii.py` (từng loại PII, nhiều PII trong một câu, không false positive) và `tests/test_correlation_logging.py` (sinh/nhận ID, từ chối header không an toàn, không rò context giữa request, scrub trước khi ghi file); `pytest` 32 passed.
+- **Cách kiểm chứng kết quả:** `validate_logs.py` đạt 100/100 (207 records, 0 thiếu field, 0 thiếu enrichment, 98 correlation ID, 0 PII leak) — `evidence/02-log-validator.png`. Structured log thật với cùng `correlation_id` ở header, response và log — `evidence/04-structured-log.png`. Gửi request chứa thẻ/CCCD/điện thoại/email giả, log chỉ còn `[REDACTED_*]` — `evidence/05-pii-redaction.png`. Tests: `tests/test_pii.py` (từng loại PII, nhiều PII trong một câu, không false positive) và `tests/test_correlation_logging.py` (sinh/nhận ID, từ chối header không an toàn, không rò context giữa request, scrub trước khi ghi file); `pytest` 38 passed — `evidence/01-pytest.png`.
 
 ## 5. Tracing và prompt versioning
 
@@ -103,20 +103,20 @@
 
 ## 8. Giải thích và tự đánh giá
 
-- **Một quyết định kỹ thuật quan trọng và lý do:**
-- **Một lỗi/blocker đã gặp:**
-- **Cách tìm nguyên nhân và xử lý:**
-- **Cách hiểu luồng Metrics → Logs → Traces:**
-- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:**
-- **Điều quan trọng nhất đã học:**
-- **Hạn chế hoặc phần chưa hoàn thành, nếu có:**
+- **Một quyết định kỹ thuật quan trọng và lý do:** đặt PII scrubbing thành một structlog processor (`scrub_event`) chạy **trước** `JsonlFileProcessor`, scrub đệ quy mọi field thay vì chỉ `payload`. Lý do: bất kỳ field nào do người dùng nhập (kể cả `session_id` hay chi tiết lỗi) đều có thể chứa PII, và một khi đã ghi xuống file thì không thu hồi được. Ngoại lệ là các field do hệ thống sinh (`ts`, `level`, `correlation_id`, `user_id_hash`), vì hash 12 ký tự hex có thể toàn chữ số và bị regex CCCD che nhầm. Cùng nguyên tắc cho trace: generation chỉ gửi preview đã scrub lên Langfuse.
+- **Một lỗi/blocker đã gặp:** lần load test đầu của CP2 (concurrency 5) có 5 request timeout, các request còn lại 7–17s, một request ghi `latency_ms=735713`, và log server báo "Failed to export spans batch due to timeout". Ngoài ra, trace của request baseline đầu tiên bị mất.
+- **Cách tìm nguyên nhân và xử lý:** đo kết nối bằng `curl` tới cloud.langfuse.com (một lần 8.7s, các lần sau <1s → mạng chập chờn). Đọc log uvicorn thấy "Prompt 'day13-chat-label:production' not found": app fetch prompt từ Langfuse trên đường xử lý request, prompt chưa tồn tại nên mỗi request mất ~6.2s rồi fallback. Xử lý: tạo prompt v1/v2 để cache hoạt động, latency về ~160ms. Trace bị mất là do dừng server bằng `taskkill /F` trước khi SDK kịp flush batch span, nên tôi thêm bước chờ ~8s trước khi restart và kiểm tra lại trace qua API trước khi ghi trace ID vào report.
+- **Cách hiểu luồng Metrics → Logs → Traces:** metrics trả lời *có vấn đề không và khi nào* (P50 153ms → 2653ms lúc 05:01:41Z, TTFT không đổi nên loại trừ LLM). Logs trả lời *request nào* (lọc `response_sent` có `latency_ms > 2000` → `req-c1b49090`). Traces trả lời *bước nào bên trong* (trace cùng `correlation_id` cho thấy `retrieval` chiếm 2.5s/2.65s). `correlation_id` là khóa nối log với trace; thiếu nó thì phải đoán theo thời gian.
+- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:** prompt là "code" thay đổi hành vi mà không qua deploy, nên mỗi trace phải ghi `prompt_name/version/label` để biết regression đến từ version nào. Label `production` cho phép promote/rollback trong vài giây mà không sửa code. Token/cost theo từng generation cho biết prompt mới có làm câu trả lời dài hoặc đắt hơn không. SLO và error budget quyết định khi nào phải dừng thay đổi để ưu tiên ổn định: ví dụ 11 request chậm trước CP2 đã chiếm 21.6% số request trong lab, vượt xa budget 0.5%.
+- **Điều quan trọng nhất đã học:** không đoán root cause, đi theo evidence. Trong incident, retrieval vẫn `tool_success=true` và không có lỗi nào; chỉ khi ghép metric (TTFT không đổi) với trace (span retrieval 2.5s) mới thấy vấn đề là *chậm* chứ không phải *hỏng*. Ngoài ra, phụ thuộc bên ngoài nằm trên đường request (fetch prompt) có thể tiêu hết error budget dù code của mình không lỗi.
+- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** các preventive measure ở §7 (timeout retrieval, ghi `retrieval_ms`, chạy agent trong threadpool, refresh prompt ở background) mới là đề xuất, chưa implement. Alert `HighLatencyP95` ở 3000ms không bắt được incident 2.65s. Promote/rollback label làm bằng Langfuse SDK (`update_prompt`) thay vì click trên UI; ảnh evidence chụp từ UI. Latency ghi trong log là thời gian xử lý trong agent, chưa gồm thời gian xếp hàng khi event loop bị chặn (client thấy 13.3s trong incident).
 
 ## 9. Checklist trước khi nộp
 
-- [ ] Kết quả và evidence thuộc commit SHA cuối.
-- [ ] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [ ] Incident evidence nối đúng metric → log → trace.
-- [ ] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
-- [ ] Repository chạy lại được theo README.
-- [ ] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
+- [x] Kết quả và evidence thuộc commit SHA cuối.
+- [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
+- [x] Incident evidence nối đúng metric → log → trace.
+- [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
+- [x] Repository chạy lại được theo README.
+- [x] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
 - [ ] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.

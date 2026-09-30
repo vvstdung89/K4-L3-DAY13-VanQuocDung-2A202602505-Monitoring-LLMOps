@@ -145,6 +145,13 @@ python -m pytest -q
 
 Baseline log chưa đạt là bình thường vì các `TODO` của CP1 chưa được làm. Ghi lại kết quả baseline vào `submission/REPORT.md` trước khi sửa.
 
+Dashboard runtime (6 panel theo `config/dashboard.yaml`, dữ liệu từ `data/logs.jsonl`) có sẵn khi API đang chạy:
+
+```text
+http://127.0.0.1:8000/dashboard              # cửa sổ 60 phút, tự refresh 30s
+http://127.0.0.1:8000/dashboard?minutes=10   # zoom vào 10 phút gần nhất khi điều tra incident
+```
+
 ## Lộ trình 9:00–13:00 (240 phút)
 
 | Mốc | Thời gian | Việc chính | Hoàn thành khi |
