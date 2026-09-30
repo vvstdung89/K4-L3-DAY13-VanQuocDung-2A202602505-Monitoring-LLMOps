@@ -37,20 +37,20 @@
 
 | Nội dung | Baseline | Kết quả cuối | Nhận xét |
 |---|---|---|---|
-| `validate_logs.py` | | | |
-| `validate_dashboard.py` | | | |
-| `pytest` | | | |
-| Số traces hợp lệ | | | |
-| Số PII leak | | | |
-| Latency P95 / TTFT P95 | | | |
-| Retrieval success rate | | | |
+| `validate_logs.py` | 30/100 (thiếu required fields, 0 correlation ID, thiếu enrichment; PII 0 leak) | | |
+| `validate_dashboard.py` | 6/6 panel hợp lệ | | |
+| `pytest` | 22 passed | | |
+| Số traces hợp lệ | 0 (10 traces, chỉ có root `lab-agent-run`, chưa có retrieval/generation) | | |
+| Số PII leak | 0 | | |
+| Latency P95 / TTFT P95 | 1325 ms / 50 ms | | |
+| Retrieval success rate | 100% (10/10) | | |
 
 ## 4. Logging và PII
 
-- **Cách tạo/nhận và truyền correlation ID:**
-- **Các metadata được ghi vào structured log:**
-- **Cách bảo đảm PII được scrub trước khi ghi:**
-- **Cách kiểm chứng kết quả:**
+- **Cách tạo/nhận và truyền correlation ID:** `CorrelationIdMiddleware` (`app/middleware.py`) gọi `clear_contextvars()` đầu mỗi request để không rò context từ request trước. Nếu client gửi `x-request-id` hợp lệ (`[A-Za-z0-9._-]{1,64}`) thì dùng lại, ngược lại sinh `req-<8-hex>` (header không hợp lệ bị thay để tránh log injection). ID được `bind_contextvars` nên mọi log line trong request đều có `correlation_id`, được lưu vào `request.state` để truyền vào `LabAgent.run` (trace metadata), và trả lại qua header `x-request-id`, `x-response-time-ms` cùng field `correlation_id` trong response body.
+- **Các metadata được ghi vào structured log:** `ts`, `level`, `service`, `event`, `correlation_id`, và context bind trong `/chat` (`app/main.py`): `user_id_hash` (`sha256(user_id)[:12]`, không log user_id thô), `session_id`, `feature`, `model`, `env`. Log `response_sent` có thêm `latency_ms`, `ttft_ms`, `tokens_in`, `tokens_out`, `cost_usd`, `quality_score`, `tool_name`, `tool_success`.
+- **Cách bảo đảm PII được scrub trước khi ghi:** processor `scrub_event` được đăng ký trong chuỗi structlog ngay sau `merge_contextvars`/`TimeStamper` và **trước** `JsonlFileProcessor`/`JSONRenderer`, nên dữ liệu được redact trước khi serialize hoặc ghi xuống `data/logs.jsonl`. `scrub_event` scrub đệ quy mọi field (kể cả dict/list lồng nhau), trừ các field do hệ thống sinh (`ts`, `level`, `correlation_id`, `user_id_hash`) để tránh false positive. Pattern trong `app/pii.py` chạy theo thứ tự email → thẻ → điện thoại VN → CCCD → hộ chiếu (thẻ chạy trước để phone/CCCD không cắt một phần số thẻ). Preview được scrub trước rồi mới cắt 80 ký tự.
+- **Cách kiểm chứng kết quả:** `validate_logs.py` đạt 100/100 (0 thiếu field, 0 thiếu enrichment, 18 correlation ID, 0 PII leak) — `evidence/02-log-validator.png`. Structured log thật với cùng `correlation_id` ở header, response và log — `evidence/04-structured-log.png`. Gửi request chứa thẻ/CCCD/điện thoại/email giả, log chỉ còn `[REDACTED_*]` — `evidence/05-pii-redaction.png`. Tests: `tests/test_pii.py` (từng loại PII, nhiều PII trong một câu, không false positive) và `tests/test_correlation_logging.py` (sinh/nhận ID, từ chối header không an toàn, không rò context giữa request, scrub trước khi ghi file); `pytest` 32 passed.
 
 ## 5. Tracing và prompt versioning
 
